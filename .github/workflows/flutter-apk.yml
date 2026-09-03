@@ -2,7 +2,8 @@ name: Build Flutter APK
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -16,19 +17,18 @@ jobs:
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
-          distribution: "temurin"
+          distribution: temurin
           java-version: "17"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "stable"
-          channel: "stable"
+          channel: stable
 
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Build APK
+      - name: Build Release APK
         run: flutter build apk --release
 
       - name: Upload APK

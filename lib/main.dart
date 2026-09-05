@@ -1191,8 +1191,321 @@ class UserProfilePage extends StatelessWidget {
 // UPLOAD
 // ------------------------------------------------------------
 
+class UploadPage extends StatefulWidget {
+  const UploadPage({super.key});
 
+  @override
+  State<UploadPage> createState() => _UploadPageState();
+}
 
+class _UploadPageState extends State<UploadPage> {
+  final ImagePicker _picker = ImagePicker();
+  final TextEditingController captionController = TextEditingController();
+
+  File? selectedFile;
+  bool isVideo = false;
+  bool uploading = false;
+
+  // 📷 Camera Photo
+  Future<void> cameraPhoto() async {
+    final XFile? file = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 90,
+    );
+
+    if (file == null) return;
+
+    setState(() {
+      selectedFile = File(file.path);
+      isVideo = false;
+    });
+
+    await saveToGallery(file.path, false);
+  }
+
+  // 🎥 Camera Video
+  Future<void> cameraVideo() async {
+    final XFile? file = await _picker.pickVideo(
+      source: ImageSource.camera,
+      maxDuration: const Duration(minutes: 5),
+    );
+
+    if (file == null) return;
+
+    setState(() {
+      selectedFile = File(file.path);
+      isVideo = true;
+    });
+
+    await saveToGallery(file.path, true);
+  }
+
+  // 🖼️ Gallery Photo
+  Future<void> galleryPhoto() async {
+    final XFile? file = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 90,
+    );
+
+    if (file == null) return;
+
+    setState(() {
+      selectedFile = File(file.path);
+      isVideo = false;
+    });
+  }
+
+  // 🎬 Gallery Video
+  Future<void> galleryVideo() async {
+    final XFile? file = await _picker.pickVideo(
+      source: ImageSource.gallery,
+    );
+
+    if (file == null) return;
+
+    setState(() {
+      selectedFile = File(file.path);
+      isVideo = true;
+    });
+  }
+
+  // 💾 Save camera media to phone gallery
+  Future<void> saveToGallery(String path, bool video) async {
+    try {
+      if (video) {
+        await Gal.putVideo(path);
+      } else {
+        await Gal.putImage(path);
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Saved to Gallery'),
+        ),
+      );
+    } catch (e) {
+      // Gallery save fail hone par upload phir bhi continue ho sakta hai.
+    }
+  }
+
+  // ⬆️ Firebase Upload
+  Future<void> uploadPost() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      showMessage('Please login first');
+      return;
+    }
+
+    if (selectedFile == null) {
+      showMessage('Please select Photo or Video');
+      return;
+    }
+
+    setState(() {
+      uploading = true;
+    });
+
+    try {
+      final String fileName =
+          '${DateTime.now().millisecondsSinceEpoch}_${user.uid}';
+
+      final String folder = isVideo ? 'videos' : 'images';
+
+      final Reference storageRef = FirebaseStorage.instance
+          .ref()
+          .child('posts')
+          .child(folder)
+          .child(fileName);
+
+      await storageRef.putFile(selectedFile!);
+
+      final String downloadUrl =
+          await storageRef.getDownloadURL();
+
+      await FirebaseFirestore.instance
+          .collection('posts')
+          .add({
+        'userId': user.uid,
+        'mediaUrl': downloadUrl,
+        'mediaType': isVideo ? 'video' : 'image',
+        'caption': captionController.text.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'likes': [],
+      });
+
+      if (!mounted) return;
+
+      setState(() {
+        selectedFile = null;
+        isVideo = false;
+        captionController.clear();
+        uploading = false;
+      });
+
+      showMessage('Post uploaded successfully');
+
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        uploading = false;
+      });
+
+      showMessage('Upload failed');
+    }
+  }
+
+  void showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  @override
+  void dispose() {
+    captionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Create Post'),
+        centerTitle: true,
+      ),
+
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+
+            // Preview
+            Container(
+              width: double.infinity,
+              height: 300,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: selectedFile == null
+                  ? const Center(
+                      child: Text(
+                        'Select Photo or Video',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    )
+                  : isVideo
+                      ? const Center(
+                          child: Icon(
+                            Icons.play_circle_fill,
+                            size: 80,
+                            color: Colors.black54,
+                          ),
+                        )
+                      : Image.file(
+                          selectedFile!,
+                          fit: BoxFit.cover,
+                        ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // 📷 Camera Photo
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: uploading ? null : cameraPhoto,
+                icon: const Icon(Icons.camera_alt),
+                label: const Text('Camera Photo'),
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // 🎥 Camera Video
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: uploading ? null : cameraVideo,
+                icon: const Icon(Icons.videocam),
+                label: const Text('Camera Video'),
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // 🖼️ Gallery Photo
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: uploading ? null : galleryPhoto,
+                icon: const Icon(Icons.photo),
+                label: const Text('Gallery Photo'),
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // 🎬 Gallery Video
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: uploading ? null : galleryVideo,
+                icon: const Icon(Icons.video_library),
+                label: const Text('Gallery Video'),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Caption
+            TextField(
+              controller: captionController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Write a caption...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // ⬆️ Upload
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: uploading ? null : uploadPost,
+                icon: uploading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(Icons.cloud_upload),
+                label: Text(
+                  uploading ? 'Uploading...' : 'Upload Post',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 // ------------------------------------------------------------
 // SETTINGS
 // ------------------------------------------------------------

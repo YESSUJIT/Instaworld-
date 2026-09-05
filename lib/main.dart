@@ -1600,7 +1600,8 @@ class UploadPage extends StatefulWidget {
 
 class _UploadPageState extends State<UploadPage> {
   final ImagePicker _picker = ImagePicker();
-  final TextEditingController captionController = TextEditingController();
+  final TextEditingController captionController =
+      TextEditingController();
 
   File? selectedFile;
   bool isVideo = false;
@@ -1637,88 +1638,67 @@ class _UploadPageState extends State<UploadPage> {
       isVideo = true;
     });
 
-// ⬆️ Firebase Upload
-Future<void> uploadPost() async {
-  final user = FirebaseAuth.instance.currentUser;
-
-  if (user == null) {
-    showMessage('Please login first');
-    return;
+    await saveToGallery(file.path, true);
   }
 
-  if (selectedFile == null) {
-    showMessage('Please select Photo or Video');
-    return;
-  }
+  // 🖼️ Gallery Photo
+  Future<void> galleryPhoto() async {
+    final XFile? file = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 90,
+    );
 
-  setState(() {
-    uploading = true;
-  });
-
-  try {
-    final String fileName =
-        '${DateTime.now().millisecondsSinceEpoch}_${user.uid}';
-
-    final String folder =
-        isVideo ? 'videos' : 'images';
-
-    final Reference storageRef =
-        FirebaseStorage.instance
-            .ref()
-            .child('posts')
-            .child(folder)
-            .child(fileName);
-
-    await storageRef.putFile(selectedFile!);
-
-    final String downloadUrl =
-        await storageRef.getDownloadURL();
-
-    final String username =
-        user.displayName?.trim().isNotEmpty == true
-            ? user.displayName!.trim()
-            : 'User';
-
-    final String userPhoto =
-        user.photoURL ?? '';
-
-    await FirebaseFirestore.instance
-        .collection('posts')
-        .add({
-      'userId': user.uid,
-      'username': username,
-      'userPhoto': userPhoto,
-      'imageUrl': downloadUrl,
-      'mediaUrl': downloadUrl,
-      'mediaType': isVideo ? 'video' : 'image',
-      'caption': captionController.text.trim(),
-      'likesCount': 0,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-
-    if (!mounted) return;
+    if (file == null) return;
 
     setState(() {
-      selectedFile = null;
+      selectedFile = File(file.path);
       isVideo = false;
-      uploading = false;
-      captionController.clear();
     });
+  }
 
-    showMessage('Post uploaded successfully');
+  // 🎬 Gallery Video
+  Future<void> galleryVideo() async {
+    final XFile? file = await _picker.pickVideo(
+      source: ImageSource.gallery,
+    );
 
-    Navigator.pop(context);
-
-  } catch (e) {
-    if (!mounted) return;
+    if (file == null) return;
 
     setState(() {
-      uploading = false;
+      selectedFile = File(file.path);
+      isVideo = true;
     });
-
-    showMessage('Upload failed: $e');
   }
-}
+
+  // 💾 Save camera media to phone gallery
+  Future<void> saveToGallery(String path, bool video) async {
+    try {
+      if (video) {
+        await Gal.putVideo(path);
+      } else {
+        await Gal.putImage(path);
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Saved to Gallery'),
+        ),
+      );
+    } catch (e) {
+      // Gallery save fail hone par upload continue rahega.
+    }
+  }
+
+  // ⬆️ Firebase Upload
+  Future<void> uploadPost() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      showMessage('Please login first');
+      return;
+    }
 
     if (selectedFile == null) {
       showMessage('Please select Photo or Video');
@@ -1733,28 +1713,41 @@ Future<void> uploadPost() async {
       final String fileName =
           '${DateTime.now().millisecondsSinceEpoch}_${user.uid}';
 
-      final String folder = isVideo ? 'videos' : 'images';
+      final String folder =
+          isVideo ? 'videos' : 'images';
 
-      final Reference storageRef = FirebaseStorage.instance
-          .ref()
-          .child('posts')
-          .child(folder)
-          .child(fileName);
+      final Reference storageRef =
+          FirebaseStorage.instance
+              .ref()
+              .child('posts')
+              .child(folder)
+              .child(fileName);
 
       await storageRef.putFile(selectedFile!);
 
       final String downloadUrl =
           await storageRef.getDownloadURL();
 
+      final String username =
+          user.displayName?.trim().isNotEmpty == true
+              ? user.displayName!.trim()
+              : 'User';
+
+      final String userPhoto =
+          user.photoURL ?? '';
+
       await FirebaseFirestore.instance
           .collection('posts')
           .add({
         'userId': user.uid,
+        'username': username,
+        'userPhoto': userPhoto,
+        'imageUrl': downloadUrl,
         'mediaUrl': downloadUrl,
         'mediaType': isVideo ? 'video' : 'image',
         'caption': captionController.text.trim(),
+        'likesCount': 0,
         'createdAt': FieldValue.serverTimestamp(),
-        'likes': [],
       });
 
       if (!mounted) return;
@@ -1762,12 +1755,13 @@ Future<void> uploadPost() async {
       setState(() {
         selectedFile = null;
         isVideo = false;
-        captionController.clear();
         uploading = false;
+        captionController.clear();
       });
 
       showMessage('Post uploaded successfully');
 
+      Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
 
@@ -1775,13 +1769,16 @@ Future<void> uploadPost() async {
         uploading = false;
       });
 
-      showMessage('Upload failed');
+      showMessage('Upload failed: $e');
     }
   }
 
+  // 🔔 Message
   void showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+      SnackBar(
+        content: Text(message),
+      ),
     );
   }
 
@@ -1798,12 +1795,10 @@ Future<void> uploadPost() async {
         title: const Text('Create Post'),
         centerTitle: true,
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-
             // Preview
             Container(
               width: double.infinity,
@@ -1843,7 +1838,8 @@ Future<void> uploadPost() async {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: uploading ? null : cameraPhoto,
+                onPressed:
+                    uploading ? null : cameraPhoto,
                 icon: const Icon(Icons.camera_alt),
                 label: const Text('Camera Photo'),
               ),
@@ -1855,7 +1851,8 @@ Future<void> uploadPost() async {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: uploading ? null : cameraVideo,
+                onPressed:
+                    uploading ? null : cameraVideo,
                 icon: const Icon(Icons.videocam),
                 label: const Text('Camera Video'),
               ),
@@ -1867,7 +1864,8 @@ Future<void> uploadPost() async {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: uploading ? null : galleryPhoto,
+                onPressed:
+                    uploading ? null : galleryPhoto,
                 icon: const Icon(Icons.photo),
                 label: const Text('Gallery Photo'),
               ),
@@ -1879,7 +1877,8 @@ Future<void> uploadPost() async {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: uploading ? null : galleryVideo,
+                onPressed:
+                    uploading ? null : galleryVideo,
                 icon: const Icon(Icons.video_library),
                 label: const Text('Gallery Video'),
               ),
@@ -1901,12 +1900,13 @@ Future<void> uploadPost() async {
 
             const SizedBox(height: 20),
 
-            // ⬆️ Upload
+            // ⬆️ Upload Button
             SizedBox(
               width: double.infinity,
               height: 52,
               child: ElevatedButton.icon(
-                onPressed: uploading ? null : uploadPost,
+                onPressed:
+                    uploading ? null : uploadPost,
                 icon: uploading
                     ? const SizedBox(
                         width: 20,
@@ -1915,9 +1915,13 @@ Future<void> uploadPost() async {
                           strokeWidth: 2,
                         ),
                       )
-                    : const Icon(Icons.cloud_upload),
+                    : const Icon(
+                        Icons.cloud_upload,
+                      ),
                 label: Text(
-                  uploading ? 'Uploading...' : 'Upload Post',
+                  uploading
+                      ? 'Uploading...'
+                      : 'Upload Post',
                 ),
               ),
             ),
@@ -1927,6 +1931,7 @@ Future<void> uploadPost() async {
     );
   }
 }
+
 // ------------------------------------------------------------
 // SETTINGS
 // ------------------------------------------------------------

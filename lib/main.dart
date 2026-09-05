@@ -1637,67 +1637,88 @@ class _UploadPageState extends State<UploadPage> {
       isVideo = true;
     });
 
-    await saveToGallery(file.path, true);
+// ⬆️ Firebase Upload
+Future<void> uploadPost() async {
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    showMessage('Please login first');
+    return;
   }
 
-  // 🖼️ Gallery Photo
-  Future<void> galleryPhoto() async {
-    final XFile? file = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 90,
-    );
+  if (selectedFile == null) {
+    showMessage('Please select Photo or Video');
+    return;
+  }
 
-    if (file == null) return;
+  setState(() {
+    uploading = true;
+  });
+
+  try {
+    final String fileName =
+        '${DateTime.now().millisecondsSinceEpoch}_${user.uid}';
+
+    final String folder =
+        isVideo ? 'videos' : 'images';
+
+    final Reference storageRef =
+        FirebaseStorage.instance
+            .ref()
+            .child('posts')
+            .child(folder)
+            .child(fileName);
+
+    await storageRef.putFile(selectedFile!);
+
+    final String downloadUrl =
+        await storageRef.getDownloadURL();
+
+    final String username =
+        user.displayName?.trim().isNotEmpty == true
+            ? user.displayName!.trim()
+            : 'User';
+
+    final String userPhoto =
+        user.photoURL ?? '';
+
+    await FirebaseFirestore.instance
+        .collection('posts')
+        .add({
+      'userId': user.uid,
+      'username': username,
+      'userPhoto': userPhoto,
+      'imageUrl': downloadUrl,
+      'mediaUrl': downloadUrl,
+      'mediaType': isVideo ? 'video' : 'image',
+      'caption': captionController.text.trim(),
+      'likesCount': 0,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    if (!mounted) return;
 
     setState(() {
-      selectedFile = File(file.path);
+      selectedFile = null;
       isVideo = false;
+      uploading = false;
+      captionController.clear();
     });
-  }
 
-  // 🎬 Gallery Video
-  Future<void> galleryVideo() async {
-    final XFile? file = await _picker.pickVideo(
-      source: ImageSource.gallery,
-    );
+    showMessage('Post uploaded successfully');
 
-    if (file == null) return;
+    Navigator.pop(context);
+
+  } catch (e) {
+    if (!mounted) return;
 
     setState(() {
-      selectedFile = File(file.path);
-      isVideo = true;
+      uploading = false;
     });
+
+    showMessage('Upload failed: $e');
   }
-
-  // 💾 Save camera media to phone gallery
-  Future<void> saveToGallery(String path, bool video) async {
-    try {
-      if (video) {
-        await Gal.putVideo(path);
-      } else {
-        await Gal.putImage(path);
-      }
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Saved to Gallery'),
-        ),
-      );
-    } catch (e) {
-      // Gallery save fail hone par upload phir bhi continue ho sakta hai.
-    }
-  }
-
-  // ⬆️ Firebase Upload
-  Future<void> uploadPost() async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      showMessage('Please login first');
-      return;
-    }
+}
 
     if (selectedFile == null) {
       showMessage('Please select Photo or Video');

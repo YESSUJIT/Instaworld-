@@ -39,3 +39,16 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  lottie: ^3.1.2
+  firebase_core: ^3.15.2
+  firebase_auth: ^5.6.2
+  cloud_firestore: ^5.6.11
+  firebase_storage: ^12.4.9
+  image_picker: ^1.1.2
+  shared_preferences: ^2.5.3
+  gal: ^2.3.2

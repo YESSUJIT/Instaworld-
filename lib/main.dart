@@ -437,6 +437,11 @@ class _SignupPageState extends State<SignupPage> {
 // ------------------------------------------------------------
 // HOME
 // ------------------------------------------------------------
+// ------------------------------------------------------------
+
+// ============================================================
+// INSTAWORLD HOME - FIREBASE
+// ============================================================
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -448,44 +453,53 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int currentIndex = 0;
 
-  final pages = const [
-    HomeFeedPage(),
-    SearchPage(),
-    ReelsPage(),
-    NotificationsPage(),
-    ProfilePage(),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final pages = [
+      const HomeFeedPage(),
+      const SearchPage(),
+      const ReelsPage(),
+      const NotificationsPage(),
+      const ProfilePage(),
+    ];
+
     return Scaffold(
       body: pages[currentIndex],
+
       bottomNavigationBar: NavigationBar(
         selectedIndex: currentIndex,
+
         onDestinationSelected: (index) {
-          setState(() => currentIndex = index);
+          setState(() {
+            currentIndex = index;
+          });
         },
+
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
             label: 'Home',
           ),
+
           NavigationDestination(
             icon: Icon(Icons.search_outlined),
             selectedIcon: Icon(Icons.search),
             label: 'Search',
           ),
+
           NavigationDestination(
             icon: Icon(Icons.movie_outlined),
             selectedIcon: Icon(Icons.movie),
             label: 'Reels',
           ),
+
           NavigationDestination(
             icon: Icon(Icons.favorite_border),
             selectedIcon: Icon(Icons.favorite),
             label: 'Activity',
           ),
+
           NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
@@ -497,25 +511,32 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// ------------------------------------------------------------
+
+// ============================================================
 // HOME FEED
-// ------------------------------------------------------------
+// ============================================================
 
 class HomeFeedPage extends StatelessWidget {
   const HomeFeedPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
     return Scaffold(
+      backgroundColor: Colors.white,
+
       appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+
         title: const Text(
           'InstaWorld',
           style: TextStyle(
+            color: Colors.black,
+            fontSize: 25,
             fontWeight: FontWeight.bold,
           ),
         ),
+
         actions: [
           IconButton(
             onPressed: () {
@@ -526,16 +547,46 @@ class HomeFeedPage extends StatelessWidget {
                 ),
               );
             },
-            icon: const Icon(Icons.add_box_outlined),
+
+            icon: const Icon(
+              Icons.add_box_outlined,
+              color: Colors.black,
+            ),
+          ),
+
+          IconButton(
+            onPressed: () {},
+
+            icon: const Icon(
+              Icons.favorite_border,
+              color: Colors.black,
+            ),
+          ),
+
+          IconButton(
+            onPressed: () {},
+
+            icon: const Icon(
+              Icons.send_outlined,
+              color: Colors.black,
+            ),
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+
+      body: StreamBuilder<
+          QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('posts')
-            .orderBy('createdAt', descending: true)
+            .orderBy(
+              'createdAt',
+              descending: true,
+            )
             .snapshots(),
+
         builder: (context, snapshot) {
+
+          // Loading
           if (snapshot.connectionState ==
               ConnectionState.waiting) {
             return const Center(
@@ -543,31 +594,40 @@ class HomeFeedPage extends StatelessWidget {
             );
           }
 
+          // Error
           if (snapshot.hasError) {
             return const Center(
-              child: Text('Feed load nahi ho saka'),
+              child: Text(
+                'Posts load nahi ho rahe',
+              ),
             );
           }
 
-          final posts = snapshot.data?.docs ?? [];
+          final posts =
+              snapshot.data?.docs ?? [];
 
+          // No posts
           if (posts.isEmpty) {
             return const Center(
               child: Text(
-                'Abhi koi post nahi hai.\n+ button se first post upload karo.',
+                'Abhi koi post nahi hai.\n'
+                'Pehli post upload karo.',
                 textAlign: TextAlign.center,
               ),
             );
           }
 
+          // Real Firebase Feed
           return ListView.builder(
             itemCount: posts.length,
-            itemBuilder: (context, index) {
-              final data = posts[index].data();
 
-              return PostCard(
+            itemBuilder: (context, index) {
+              final post =
+                  posts[index].data();
+
+              return FirebasePostCard(
                 postId: posts[index].id,
-                data: data,
+                data: post,
               );
             },
           );
@@ -577,161 +637,495 @@ class HomeFeedPage extends StatelessWidget {
   }
 }
 
-// ------------------------------------------------------------
-// POST CARD
-// ------------------------------------------------------------
 
-class PostCard extends StatefulWidget {
+// ============================================================
+// FIREBASE POST CARD
+// ============================================================
+
+class FirebasePostCard extends StatefulWidget {
   final String postId;
   final Map<String, dynamic> data;
 
-  const PostCard({
+  const FirebasePostCard({
     super.key,
     required this.postId,
     required this.data,
   });
 
   @override
-  State<PostCard> createState() => _PostCardState();
+  State<FirebasePostCard> createState() =>
+      _FirebasePostCardState();
 }
 
-class _PostCardState extends State<PostCard> {
-  bool liking = false;
+class _FirebasePostCardState
+    extends State<FirebasePostCard> {
 
-  DocumentReference<Map<String, dynamic>> get postRef =>
-      FirebaseFirestore.instance
-          .collection('posts')
-          .doc(widget.postId);
+  bool isLiked = false;
+  bool loadingLike = false;
 
-  Future<void> toggleLike() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+  @override
+  void initState() {
+    super.initState();
+    checkLike();
+  }
 
-    if (uid == null || liking) return;
+  // ----------------------------------------------------------
+  // CHECK LIKE
+  // ----------------------------------------------------------
 
-    setState(() => liking = true);
+  Future<void> checkLike() async {
+    final user =
+        FirebaseAuth.instance.currentUser;
 
-    try {
-      final likeRef = postRef.collection('likes').doc(uid);
-      final likeDoc = await likeRef.get();
+    if (user == null) return;
 
-      if (likeDoc.exists) {
-        await likeRef.delete();
-        await postRef.update({
-          'likesCount': FieldValue.increment(-1),
-        });
-      } else {
-        await likeRef.set({
-          'uid': uid,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-
-        await postRef.update({
-          'likesCount': FieldValue.increment(1),
-        });
-      }
-    } catch (_) {}
+    final like = await FirebaseFirestore
+        .instance
+        .collection('posts')
+        .doc(widget.postId)
+        .collection('likes')
+        .doc(user.uid)
+        .get();
 
     if (mounted) {
-      setState(() => liking = false);
+      setState(() {
+        isLiked = like.exists;
+      });
     }
   }
 
+  // ----------------------------------------------------------
+  // LIKE / UNLIKE
+  // ----------------------------------------------------------
+
+  Future<void> toggleLike() async {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null || loadingLike) {
+      return;
+    }
+
+    setState(() {
+      loadingLike = true;
+    });
+
+    final postRef = FirebaseFirestore
+        .instance
+        .collection('posts')
+        .doc(widget.postId);
+
+    final likeRef = postRef
+        .collection('likes')
+        .doc(user.uid);
+
+    try {
+      final likeDoc = await likeRef.get();
+
+      if (likeDoc.exists) {
+
+        await likeRef.delete();
+
+        await postRef.update({
+          'likesCount':
+              FieldValue.increment(-1),
+        });
+
+        if (mounted) {
+          setState(() {
+            isLiked = false;
+          });
+        }
+
+      } else {
+
+        await likeRef.set({
+          'uid': user.uid,
+          'createdAt':
+              FieldValue.serverTimestamp(),
+        });
+
+        await postRef.update({
+          'likesCount':
+              FieldValue.increment(1),
+        });
+
+        if (mounted) {
+          setState(() {
+            isLiked = true;
+          });
+        }
+      }
+
+    } catch (e) {
+      debugPrint('Like error: $e');
+    }
+
+    if (mounted) {
+      setState(() {
+        loadingLike = false;
+      });
+    }
+  }
+
+  // ----------------------------------------------------------
+  // BUILD POST
+  // ----------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
+
     final username =
-        widget.data['username']?.toString() ?? 'user';
+        widget.data['username']
+            ?.toString() ??
+        'User';
 
     final caption =
-        widget.data['caption']?.toString() ?? '';
+        widget.data['caption']
+            ?.toString() ??
+        '';
 
     final imageUrl =
-        widget.data['imageUrl']?.toString() ?? '';
+        widget.data['imageUrl']
+            ?.toString() ??
+        '';
+
+    final profileUrl =
+        widget.data['userPhoto']
+            ?.toString() ??
+        '';
 
     final likes =
-        (widget.data['likesCount'] ?? 0) as num;
+        widget.data['likesCount'] ?? 0;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+
       children: [
+
+        // ------------------------------------------------------
+        // USER HEADER
+        // ------------------------------------------------------
+
         ListTile(
-          leading: const CircleAvatar(
-            child: Icon(Icons.person),
+
+          leading: CircleAvatar(
+
+            backgroundImage:
+                profileUrl.isNotEmpty
+                    ? NetworkImage(profileUrl)
+                    : null,
+
+            child: profileUrl.isEmpty
+                ? const Icon(Icons.person)
+                : null,
           ),
+
           title: Text(
             username,
+
             style: const TextStyle(
               fontWeight: FontWeight.bold,
             ),
           ),
+
+          trailing: IconButton(
+            onPressed: () {},
+
+            icon: const Icon(
+              Icons.more_vert,
+            ),
+          ),
         ),
 
+        // ------------------------------------------------------
+        // POST IMAGE
+        // ------------------------------------------------------
+
         if (imageUrl.isNotEmpty)
-          AspectRatio(
-            aspectRatio: 1,
+
+          SizedBox(
+            width: double.infinity,
+
             child: Image.network(
               imageUrl,
+
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) {
-                return const Center(
-                  child: Icon(Icons.broken_image),
+
+              loadingBuilder:
+                  (context, child, progress) {
+
+                if (progress == null) {
+                  return child;
+                }
+
+                return const AspectRatio(
+                  aspectRatio: 1,
+                  child: Center(
+                    child:
+                        CircularProgressIndicator(),
+                  ),
+                );
+              },
+
+              errorBuilder:
+                  (context, error, stackTrace) {
+
+                return const AspectRatio(
+                  aspectRatio: 1,
+
+                  child: Center(
+                    child: Icon(
+                      Icons.broken_image,
+                      size: 50,
+                    ),
+                  ),
                 );
               },
             ),
           ),
 
+        // ------------------------------------------------------
+        // ACTION BUTTONS
+        // ------------------------------------------------------
+
         Row(
           children: [
+
             IconButton(
               onPressed: toggleLike,
-              icon: const Icon(Icons.favorite_border),
+
+              icon: Icon(
+                isLiked
+                    ? Icons.favorite
+                    : Icons.favorite_border,
+
+                color: isLiked
+                    ? Colors.red
+                    : Colors.black,
+
+                size: 29,
+              ),
             ),
+
             IconButton(
               onPressed: () {
-                showMessage('Comment system next step mein add hoga');
+                showCommentsSheet(
+                  context,
+                  widget.postId,
+                );
               },
-              icon: const Icon(Icons.comment_outlined),
+
+              icon: const Icon(
+                Icons.chat_bubble_outline,
+                size: 27,
+              ),
             ),
+
             IconButton(
-              onPressed: () {
-                showMessage('Save system next step mein add hoga');
-              },
-              icon: const Icon(Icons.bookmark_border),
+              onPressed: () {},
+
+              icon: const Icon(
+                Icons.send_outlined,
+                size: 27,
+              ),
             ),
+
             const Spacer(),
+
             IconButton(
-              onPressed: () {
-                showMessage('Share system next step mein add hoga');
-              },
-              icon: const Icon(Icons.share_outlined),
+              onPressed: () {},
+
+              icon: const Icon(
+                Icons.bookmark_border,
+                size: 28,
+              ),
             ),
           ],
         ),
 
+        // ------------------------------------------------------
+        // LIKES
+        // ------------------------------------------------------
+
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding:
+              const EdgeInsets.symmetric(
+            horizontal: 14,
+          ),
+
           child: Text(
             '$likes likes',
+
             style: const TextStyle(
               fontWeight: FontWeight.bold,
             ),
           ),
         ),
 
+        // ------------------------------------------------------
+        // CAPTION
+        // ------------------------------------------------------
+
         if (caption.isNotEmpty)
+
           Padding(
-            padding: const EdgeInsets.fromLTRB(
-              16,
+            padding:
+                const EdgeInsets.fromLTRB(
+              14,
               6,
-              16,
+              14,
               16,
             ),
-            child: Text(
-              '$username $caption',
+
+            child: RichText(
+              text: TextSpan(
+
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontSize: 14,
+                ),
+
+                children: [
+
+                  TextSpan(
+                    text: '$username ',
+                    style: const TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+
+                  TextSpan(
+                    text: caption,
+                  ),
+                ],
+              ),
             ),
           ),
+
+        const Divider(
+          height: 1,
+        ),
       ],
     );
   }
+}
+
+
+// ============================================================
+// COMMENTS
+// ============================================================
+
+void showCommentsSheet(
+  BuildContext context,
+  String postId,
+) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+
+    builder: (context) {
+
+      return SizedBox(
+        height:
+            MediaQuery.of(context).size.height *
+                0.75,
+
+        child: Column(
+          children: [
+
+            const Padding(
+              padding: EdgeInsets.all(16),
+
+              child: Text(
+                'Comments',
+
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight:
+                      FontWeight.bold,
+                ),
+              ),
+            ),
+
+            Expanded(
+              child: StreamBuilder<
+                  QuerySnapshot<
+                      Map<String, dynamic>>>(
+                stream: FirebaseFirestore
+                    .instance
+                    .collection('posts')
+                    .doc(postId)
+                    .collection('comments')
+                    .orderBy(
+                      'createdAt',
+                      descending: true,
+                    )
+                    .snapshots(),
+
+                builder:
+                    (context, snapshot) {
+
+                  if (!snapshot.hasData) {
+                    return const Center(
+                      child:
+                          CircularProgressIndicator(),
+                    );
+                  }
+
+                  final comments =
+                      snapshot.data!.docs;
+
+                  if (comments.isEmpty) {
+                    return const Center(
+                      child: Text(
+                        'No comments yet',
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    itemCount:
+                        comments.length,
+
+                    itemBuilder:
+                        (context, index) {
+
+                      final comment =
+                          comments[index].data();
+
+                      return ListTile(
+
+                        leading:
+                            const CircleAvatar(
+                          child:
+                              Icon(Icons.person),
+                        ),
+
+                        title: Text(
+                          comment['username']
+                                  ?.toString() ??
+                              'User',
+                        ),
+
+                        subtitle: Text(
+                          comment['text']
+                                  ?.toString() ??
+                              '',
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 // ------------------------------------------------------------

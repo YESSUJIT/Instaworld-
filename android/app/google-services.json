@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "905382815163",
-    "project_id": "instaworld-094",
-    "storage_bucket": "instaworld-094.firebasestorage.app"
+    "project_number": "820181826339",
+    "project_id": "instaworld-4848",
+    "storage_bucket": "instaworld-4848.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:905382815163:android:8ebbaa9a58fefd51c6109e",
+        "mobilesdk_app_id": "1:820181826339:android:ee1d1efcd58d29a97f2a96",
         "android_client_info": {
-          "package_name": "Com.instaworld.com"
+          "package_name": "com.sujit.instaworld"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDOmD4UCTHGbdkRYK8f6Oh8DG4JIIy_orA"
+          "current_key": "AIzaSyAd5_R2QmAuzc4yebDE42YSY_uGx8KjYMk"
         }
       ],
       "services": {

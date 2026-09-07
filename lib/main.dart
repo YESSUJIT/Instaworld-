@@ -161,7 +161,15 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
+  body: Stack(
+    children: [
+      Positioned.fill(
+        child: Image.asset(
+          'assets/images/login_bg.png',
+          fit: BoxFit.cover,
+        ),
+      ),
+      SafeArea(
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
@@ -174,6 +182,7 @@ class _LoginPageState extends State<LoginPage> {
                   style: TextStyle(
                     fontSize: 40,
                     fontWeight: FontWeight.bold,
+                    color: Colors.black,
                   ),
                 ),
 
@@ -186,6 +195,8 @@ class _LoginPageState extends State<LoginPage> {
                     labelText: 'Email',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.email_outlined),
+                    filled: true,
+                    fillColor: Colors.white,
                   ),
                 ),
 
@@ -198,6 +209,8 @@ class _LoginPageState extends State<LoginPage> {
                     labelText: 'Password',
                     border: const OutlineInputBorder(),
                     prefixIcon: const Icon(Icons.lock_outline),
+                    filled: true,
+                    fillColor: Colors.white,
                     suffixIcon: IconButton(
                       onPressed: () {
                         setState(() {
@@ -259,10 +272,9 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       ),
-    );
-  }
-}
-
+    ],
+  ),
+);
 // ------------------------------------------------------------
 // SIGNUP
 // ------------------------------------------------------------
